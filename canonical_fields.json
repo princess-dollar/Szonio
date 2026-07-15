@@ -1,0 +1,131 @@
+{
+  "$comment": "Canonical field dictionary for SSO calculation. Every company formula config (configs/<company>.json) and the Phase 2 LLM column mapper reference these `key` values. Hand-edit freely: add aliases_th variants as new companies are onboarded, fill in expected_group once verified against a real file. See .claude/skills/sso-calc/SKILL.md for the disambiguation rule this file exists to serve.",
+  "fields": [
+    {
+      "key": "salary_per_period",
+      "aliases_th": [
+        "เงินเดือนต่องวด"
+      ],
+      "expected_group": "เงินเดือน",
+      "polarity": "income",
+      "notes": null
+    },
+    {
+      "key": "back_pay_salary",
+      "aliases_th": [
+        "เงินตกเบิกปรับเงินเดือนย้อนหลัง"
+      ],
+      "expected_group": null,
+      "polarity": "income",
+      "notes": "Not present in Upload_Excel.xlsx sample file; sourced from company manuals. expected_group unverified — confirm group when a company file with this column is available."
+    },
+    {
+      "key": "back_pay_welfare",
+      "aliases_th": [
+        "ตกเบิกสวัสดิการ"
+      ],
+      "expected_group": null,
+      "polarity": "income",
+      "notes": "Not present in Upload_Excel.xlsx sample file; sourced from company manuals. expected_group unverified — confirm group when a company file with this column is available."
+    },
+    {
+      "key": "cost_of_living",
+      "aliases_th": [
+        "ค่าครองชีพ"
+      ],
+      "expected_group": null,
+      "polarity": "income",
+      "notes": "Not present in Upload_Excel.xlsx sample file; sourced from company manuals. expected_group unverified — confirm group when a company file with this column is available."
+    },
+    {
+      "key": "leave_compensation_income",
+      "aliases_th": [
+        "ชดเชยวันลา (บาท)"
+      ],
+      "expected_group": "ชดเชยวันลา",
+      "polarity": "income",
+      "notes": "Income-side leave compensation. Disambiguate from deduct_leave_compensation by expected_group ('ชดเชยวันลา') — the two share a near-identical Thai name but sit under different group headers."
+    },
+    {
+      "key": "deduct_unpaid_leave",
+      "aliases_th": [
+        "หักลาไม่รับค่าจ้าง (บาท)"
+      ],
+      "expected_group": "ลาไม่รับค่าจ้าง",
+      "polarity": "deduction",
+      "notes": null
+    },
+    {
+      "key": "deduct_late_early",
+      "aliases_th": [
+        "หักมาสาย/กลับก่อน (บาท)"
+      ],
+      "expected_group": "สาย/กลับก่อน",
+      "polarity": "deduction",
+      "notes": null
+    },
+    {
+      "key": "deduct_suspension",
+      "aliases_th": [
+        "พักงาน (บาท)"
+      ],
+      "expected_group": "พักงาน",
+      "polarity": "deduction",
+      "notes": null
+    },
+    {
+      "key": "deduct_absence",
+      "aliases_th": [
+        "หักขาดงาน/ไม่ทาบบัตร (บาท)"
+      ],
+      "expected_group": "ขาดงาน/ไม่ทาบบัตร",
+      "polarity": "deduction",
+      "notes": null
+    },
+    {
+      "key": "deduct_leave_compensation",
+      "aliases_th": [
+        "หักชดเชยวันลา (บาท)"
+      ],
+      "expected_group": "ชดเชยวันลา (หัก)",
+      "polarity": "deduction",
+      "notes": "Deduction-side leave compensation. expected_group is 'ชดเชยวันลา (หัก)', distinct from leave_compensation_income's 'ชดเชยวันลา' — the group is what disambiguates these two fields since the Thai names are otherwise nearly identical."
+    },
+    {
+      "key": "deduct_welfare",
+      "aliases_th": [
+        "หักสวัสดิการ"
+      ],
+      "expected_group": null,
+      "polarity": "deduction",
+      "notes": "Not present in Upload_Excel.xlsx sample file; sourced from company manuals. expected_group unverified — confirm group when a company file with this column is available."
+    },
+    {
+      "key": "advance_payment",
+      "aliases_th": [
+        "เบิกเงินล่วงหน้า"
+      ],
+      "expected_group": "รายหัก",
+      "polarity": "deduction",
+      "notes": null
+    },
+    {
+      "key": "base_salary",
+      "aliases_th": [
+        "ฐานเงินเดือน"
+      ],
+      "expected_group": "เงินเดือน",
+      "polarity": "income",
+      "notes": "Not in the original requested list — added because this is the literal SSO wage base column ('ฐาน' = base) and is very likely the direct source feeding the sample file's ground-truth 'BASE SSO' column."
+    },
+    {
+      "key": "deduct_lunch_break_violation",
+      "aliases_th": [
+        "หักพักเที่ยง (บาท)"
+      ],
+      "expected_group": "พักเที่ยง",
+      "polarity": "deduction",
+      "notes": "Not in the original requested list — added because it follows the same pattern as deduct_late_early/deduct_absence: a monetary attendance-violation deduction that reduces the wage base."
+    }
+  ]
+}
