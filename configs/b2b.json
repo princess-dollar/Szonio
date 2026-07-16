@@ -1,0 +1,13 @@
+{
+  "company_id": "b2b",
+  "display_name": "B2B",
+  "version": 1,
+  "components": [
+    {"key": "salary_per_period", "sign": "+", "required": true},
+    {"key": "leave_compensation_income", "sign": "+", "required": false},
+    {"key": "deduct_absence", "sign": "-", "required": false},
+    {"key": "deduct_leave_compensation", "sign": "-", "required": false},
+    {"key": "deduct_welfare", "sign": "-", "required": false},
+    {"key": "advance_payment", "sign": "-", "required": false}
+  ]
+}

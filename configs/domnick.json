@@ -1,0 +1,10 @@
+{
+  "company_id": "domnick",
+  "display_name": "Domnick",
+  "version": 1,
+  "components": [
+    {"key": "salary_per_period", "sign": "+", "required": true},
+    {"key": "deduct_unpaid_leave", "sign": "-", "required": false},
+    {"key": "deduct_late_early", "sign": "-", "required": false}
+  ]
+}

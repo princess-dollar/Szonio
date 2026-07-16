@@ -1,0 +1,11 @@
+{
+  "company_id": "gmtx",
+  "display_name": "GMTX",
+  "version": 1,
+  "components": [
+    {"key": "salary_per_period", "sign": "+", "required": true},
+    {"key": "leave_compensation_income", "sign": "+", "required": false},
+    {"key": "deduct_absence", "sign": "-", "required": false},
+    {"key": "deduct_suspension", "sign": "-", "required": false}
+  ]
+}

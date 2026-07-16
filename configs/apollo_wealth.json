@@ -1,0 +1,14 @@
+{
+  "company_id": "apollo_wealth",
+  "display_name": "Apollo Wealth",
+  "version": 1,
+  "components": [
+    {"key": "salary_per_period", "sign": "+", "required": true},
+    {"key": "back_pay_salary", "sign": "+", "required": false},
+    {"key": "back_pay_welfare", "sign": "+", "required": false},
+    {"key": "deduct_unpaid_leave", "sign": "-", "required": false},
+    {"key": "deduct_suspension", "sign": "-", "required": false},
+    {"key": "deduct_leave_compensation", "sign": "-", "required": false},
+    {"key": "deduct_welfare", "sign": "-", "required": false}
+  ]
+}
