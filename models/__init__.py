@@ -1,3 +1,4 @@
+from .column_mapping import ColumnMapping, ColumnMappingResult, validate_column_mapping_response
 from .company_config import (
     Component,
     CompanyConfig,
@@ -17,4 +18,7 @@ __all__ = [
     "load_canonical_keys",
     "load_company_config",
     "load_sso_rule",
+    "ColumnMapping",
+    "ColumnMappingResult",
+    "validate_column_mapping_response",
 ]
