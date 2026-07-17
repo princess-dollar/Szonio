@@ -7,6 +7,7 @@ from .company_config import (
     load_company_config,
     load_sso_rule,
 )
+from .mapping_rules import MappingRules, load_mapping_rules
 from .workbook_metadata import ColumnInfo, WorkbookMetadata
 
 __all__ = [
@@ -21,4 +22,6 @@ __all__ = [
     "ColumnMapping",
     "ColumnMappingResult",
     "validate_column_mapping_response",
+    "MappingRules",
+    "load_mapping_rules",
 ]
