@@ -1,3 +1,4 @@
+from .calculation import ComponentAmount, EmployeeResult
 from .column_mapping import ColumnMapping, ColumnMappingResult, validate_column_mapping_response
 from .company_config import (
     Component,
@@ -24,4 +25,6 @@ __all__ = [
     "validate_column_mapping_response",
     "MappingRules",
     "load_mapping_rules",
+    "ComponentAmount",
+    "EmployeeResult",
 ]
