@@ -164,3 +164,38 @@ def inspect_workbook(path: str, sample_size: int = 5) -> WorkbookMetadata:
         )
     finally:
         wb.close()
+
+
+def read_employee_rows(path: str) -> list[dict[int, Any]]:
+    """Full, unmasked employee data for every real row (trailing Total row
+    excluded, via the same detection as inspect_workbook), keyed by 1-based
+    column index. For internal use by the calculation pipeline only —
+    unlike sample_rows, this is not sample-sized or PII-masked, since it
+    never leaves Python's trusted boundary (SKILL.md rule 6 only requires
+    masking when data reaches the LLM or another non-essential output).
+    """
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    try:
+        ws = wb[wb.sheetnames[0]]
+
+        header_row_idx = _detect_header_row(ws)
+        header_values = next(
+            ws.iter_rows(min_row=header_row_idx, max_row=header_row_idx, values_only=True)
+        )
+        total_columns = len(header_values)
+
+        data_rows = [
+            row
+            for row in ws.iter_rows(min_row=header_row_idx + 1, max_row=ws.max_row, values_only=True)
+            if not _is_total_row(row[0] if row else None)
+        ]
+
+        return [
+            {
+                col_pos + 1: (row[col_pos] if col_pos < len(row) else None)
+                for col_pos in range(total_columns)
+            }
+            for row in data_rows
+        ]
+    finally:
+        wb.close()

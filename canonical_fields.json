@@ -126,6 +126,15 @@
       "expected_group": "พักเที่ยง",
       "polarity": "deduction",
       "notes": "Not in the original requested list — added because it follows the same pattern as deduct_late_early/deduct_absence: a monetary attendance-violation deduction that reduces the wage base."
+    },
+    {
+      "key": "employee_id",
+      "aliases_th": [
+        "รหัสพนักงาน"
+      ],
+      "expected_group": "ข้อมูลทั่วไป",
+      "polarity": "identity",
+      "notes": "Added in Phase 5 — the orchestrator needs to key per-employee results and detect blank/missing rows without hardcoding 'column 1 is always the employee ID' (SKILL.md rule 5 forbids assuming column order is stable). Routing it through the same LLM mapping mechanism as every other field avoids a special case. Never referenced by any company's formula components; polarity 'identity' distinguishes it from income/deduction — it is never summed into a calculation."
     }
   ]
 }
