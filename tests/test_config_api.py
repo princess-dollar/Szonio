@@ -135,47 +135,83 @@ def test_put_unknown_company_is_404(client):
 
 
 # --- POST create company --------------------------------------------------
+# Admins never send company_id — the server generates an opaque one and
+# enforces uniqueness on the Thai display_name instead.
 
 
-def test_post_creates_new_company(client, store_dir):
+def _create_company_body(display_name, components=None):
+    return {
+        "display_name": display_name,
+        "components": components
+        or [{"field": "salary_per_period", "sign": "+", "required": True}],
+    }
+
+
+def test_post_creates_new_company_with_generated_id(client, store_dir):
+    resp = client.post("/api/companies", json=_create_company_body("New Co"))
+    assert resp.status_code == 201
+    body = resp.json()
+
+    company_id = body["company_id"]
+    assert company_id.startswith("company_")
+    assert body["display_name"] == "New Co"
+    assert body["version"] == 1
+    assert (store_dir / "configs" / f"{company_id}.json").exists()
+
+
+def test_created_company_is_retrievable_by_generated_id(client):
+    created = client.post("/api/companies", json=_create_company_body("Retrievable Co")).json()
+    company_id = created["company_id"]
+
+    fetched = client.get(f"/api/companies/{company_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["company_id"] == company_id
+    assert fetched.json()["display_name"] == "Retrievable Co"
+
+
+def test_post_request_body_ignores_any_client_supplied_company_id(client):
+    # Even if a client sneaks company_id into the body, it is not honored:
+    # the server always mints its own opaque id.
     resp = client.post(
         "/api/companies",
         json={
-            "company_id": "newco",
-            "display_name": "New Co",
+            "company_id": "attacker_chosen_id",
+            "display_name": "Ignore My Id",
             "components": [{"field": "salary_per_period", "sign": "+", "required": True}],
         },
     )
     assert resp.status_code == 201
-    body = resp.json()
-    assert body["company_id"] == "newco"
-    assert body["version"] == 1
-    assert (store_dir / "configs" / "newco.json").exists()
+    assert resp.json()["company_id"] != "attacker_chosen_id"
+    assert resp.json()["company_id"].startswith("company_")
 
 
-def test_post_duplicate_company_is_409(client):
-    resp = client.post(
-        "/api/companies",
-        json={
-            "company_id": "domnick",
-            "display_name": "Dup",
-            "components": [{"field": "salary_per_period", "sign": "+", "required": True}],
-        },
-    )
+def test_post_duplicate_display_name_is_409(client):
+    # "Domnick" already exists; a case/whitespace variant must be rejected.
+    resp = client.post("/api/companies", json=_create_company_body("  domnick  "))
     assert resp.status_code == 409
 
 
-@pytest.mark.parametrize("bad_id", ["New Co", "UPPER", "1leading", "has-dash", "space id"])
-def test_post_bad_company_id_format_is_400(client, bad_id):
-    resp = client.post(
-        "/api/companies",
-        json={
-            "company_id": bad_id,
-            "display_name": "X",
-            "components": [{"field": "salary_per_period", "sign": "+", "required": True}],
-        },
-    )
+def test_post_blank_display_name_is_400(client):
+    resp = client.post("/api/companies", json=_create_company_body("   "))
     assert resp.status_code == 400
+
+
+def test_post_company_generates_unique_id_on_collision(client, store_dir, monkeypatch):
+    # First mint collides with an id that already exists on disk; the store must
+    # detect the collision and retry rather than clobber the existing file.
+    first = client.post("/api/companies", json=_create_company_body("First Co")).json()
+    taken_suffix = first["company_id"].removeprefix("company_")
+
+    import services.config_store as cs
+
+    seq = iter([taken_suffix, taken_suffix, "abcdef"])
+    monkeypatch.setattr(cs.secrets, "token_hex", lambda n: next(seq))
+
+    resp = client.post("/api/companies", json=_create_company_body("Second Co"))
+    assert resp.status_code == 201
+    assert resp.json()["company_id"] == "company_abcdef"
+    # The colliding company's file was left intact.
+    assert (store_dir / "configs" / f"{first['company_id']}.json").exists()
 
 
 # --- canonical fields -----------------------------------------------------
@@ -192,37 +228,139 @@ def test_get_canonical_fields_excludes_identity(client):
     assert all(f["polarity"] != "identity" for f in fields)
 
 
-def test_post_adds_canonical_field(client, store_dir):
+def test_post_adds_canonical_field_with_generated_key(client, store_dir):
     resp = client.post(
         "/api/canonical-fields",
         json={
-            "key": "special_allowance",
-            "aliases_th": ["เบี้ยพิเศษ"],
+            "name_th_primary": "เบี้ยพิเศษ",
+            "aliases_th": ["ค่าพิเศษ"],
             "expected_group": None,
             "polarity": "income",
         },
     )
     assert resp.status_code == 201
+    field = resp.json()["canonical_field"]
 
-    # It re-parses from disk and now appears in the list.
+    key = field["key"]
+    assert key.startswith("field_")
+    # The primary Thai name is stored first, so aliases_th[0] is always a
+    # human-facing label; extra aliases follow.
+    assert field["aliases_th"] == ["เบี้ยพิเศษ", "ค่าพิเศษ"]
+
+    # It re-parses from disk and is retrievable by its generated key.
     raw = json.loads((store_dir / "canonical_fields.json").read_text(encoding="utf-8"))
-    assert any(f["key"] == "special_allowance" for f in raw["fields"])
+    assert any(f["key"] == key for f in raw["fields"])
     listed = {f["key"] for f in client.get("/api/canonical-fields").json()["canonical_fields"]}
-    assert "special_allowance" in listed
+    assert key in listed
 
 
-def test_post_duplicate_canonical_key_is_409(client):
+def test_post_field_body_ignores_any_client_supplied_key(client):
     resp = client.post(
         "/api/canonical-fields",
-        json={"key": "salary_per_period", "aliases_th": [], "expected_group": None, "polarity": "income"},
+        json={
+            "key": "attacker_chosen_key",
+            "name_th_primary": "ชื่อใหม่ล่าสุด",
+            "aliases_th": [],
+            "expected_group": None,
+            "polarity": "income",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["canonical_field"]["key"] != "attacker_chosen_key"
+    assert resp.json()["canonical_field"]["key"].startswith("field_")
+
+
+def test_post_duplicate_canonical_name_is_409(client):
+    # "เงินเดือนต่องวด" is an existing alias of salary_per_period. A
+    # whitespace variant as the primary name must be rejected by Thai name.
+    resp = client.post(
+        "/api/canonical-fields",
+        json={
+            "name_th_primary": "  เงินเดือนต่องวด  ",
+            "aliases_th": [],
+            "expected_group": None,
+            "polarity": "income",
+        },
     )
     assert resp.status_code == 409
+
+
+def test_post_duplicate_via_alias_is_409(client):
+    # New primary name is unique, but one of its aliases collides with an
+    # existing field's alias — dedup is on every Thai name, not just the primary.
+    resp = client.post(
+        "/api/canonical-fields",
+        json={
+            "name_th_primary": "ชื่อที่ไม่ซ้ำแน่นอน",
+            "aliases_th": ["หักชดเชยวันลา (บาท)"],
+            "expected_group": None,
+            "polarity": "deduction",
+        },
+    )
+    assert resp.status_code == 409
+
+
+def test_post_duplicate_name_is_case_insensitive_409(client):
+    first = client.post(
+        "/api/canonical-fields",
+        json={
+            "name_th_primary": "Special Bonus",
+            "aliases_th": [],
+            "expected_group": None,
+            "polarity": "income",
+        },
+    )
+    assert first.status_code == 201
+
+    dup = client.post(
+        "/api/canonical-fields",
+        json={
+            "name_th_primary": "special bonus",
+            "aliases_th": [],
+            "expected_group": None,
+            "polarity": "income",
+        },
+    )
+    assert dup.status_code == 409
+
+
+def test_post_blank_primary_name_is_400(client):
+    resp = client.post(
+        "/api/canonical-fields",
+        json={"name_th_primary": "   ", "aliases_th": [], "expected_group": None, "polarity": "income"},
+    )
+    assert resp.status_code == 400
+
+
+def test_post_field_generates_unique_key_on_collision(client, monkeypatch):
+    first = client.post(
+        "/api/canonical-fields",
+        json={"name_th_primary": "ฟิลด์แรก", "aliases_th": [], "expected_group": None, "polarity": "income"},
+    ).json()["canonical_field"]
+    taken_suffix = first["key"].removeprefix("field_")
+
+    import services.config_store as cs
+
+    seq = iter([taken_suffix, "beefee"])
+    monkeypatch.setattr(cs.secrets, "token_hex", lambda n: next(seq))
+
+    resp = client.post(
+        "/api/canonical-fields",
+        json={"name_th_primary": "ฟิลด์สอง", "aliases_th": [], "expected_group": None, "polarity": "income"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["canonical_field"]["key"] == "field_beefee"
 
 
 def test_post_identity_polarity_is_rejected_400(client):
     resp = client.post(
         "/api/canonical-fields",
-        json={"key": "another_identity", "aliases_th": [], "expected_group": None, "polarity": "identity"},
+        json={
+            "name_th_primary": "ตัวตนใหม่",
+            "aliases_th": [],
+            "expected_group": None,
+            "polarity": "identity",
+        },
     )
     assert resp.status_code == 400
 

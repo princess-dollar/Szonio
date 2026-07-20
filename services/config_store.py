@@ -20,18 +20,28 @@ No LLM/gateway dependency: this is pure file read / validate / write.
 
 import json
 import os
-import re
+import secrets
 import tempfile
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 from models.company_config import CompanyConfig, load_canonical_keys, load_company_config
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-_COMPANY_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
-_FIELD_KEY_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 _ADDABLE_POLARITIES = {"income", "deduction"}
+
+# company_id / field key are opaque internal references, never shown to or
+# entered by admins (they type only Thai display names). We mint a short
+# random slug and collision-check it; 3 bytes -> 6 hex chars.
+_GENERATED_ID_HEX_BYTES = 3
+_MAX_ID_ATTEMPTS = 10000
+
+
+def _normalize_thai_name(value: Optional[str]) -> str:
+    """Fold a human name for duplicate detection: trim ends, collapse internal
+    whitespace, and casefold. Uniqueness is enforced on this, not on the id."""
+    return " ".join((value or "").split()).casefold()
 
 
 class ConfigError(Exception):
@@ -81,6 +91,26 @@ class ConfigStore:
 
     def _company_path(self, company_id: str) -> Path:
         return self.config_dir / f"{company_id}.json"
+
+    def _iter_company_raw(self) -> Iterator[dict]:
+        """Yield the raw JSON of every company config, skipping unreadable
+        ones. Used for name-based duplicate detection across ALL configs,
+        including ones list_companies() hides (e.g. component-less drafts)."""
+        if not self.config_dir.exists():
+            return
+        for path in sorted(self.config_dir.glob("*.json")):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    yield json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+
+    def _generate_company_id(self) -> str:
+        for _ in range(_MAX_ID_ATTEMPTS):
+            candidate = "company_" + secrets.token_hex(_GENERATED_ID_HEX_BYTES)
+            if not self._company_path(candidate).exists():
+                return candidate
+        raise ConfigError("ไม่สามารถสร้างรหัสบริษัทที่ไม่ซ้ำได้ กรุณาลองใหม่")
 
     def list_companies(self) -> list[dict]:
         if not self.config_dir.exists():
@@ -156,19 +186,22 @@ class ConfigStore:
         }
         return self._validate_and_write_company(company_id, raw)
 
-    def create_company(
-        self, company_id: str, display_name: str, components: list[dict]
-    ) -> CompanyConfig:
-        if not _COMPANY_ID_RE.match(company_id):
-            raise ConfigValidation(
-                "รหัสบริษัทต้องเป็นตัวพิมพ์เล็ก a-z, ตัวเลข หรือ _ เท่านั้น และห้ามขึ้นต้นด้วยตัวเลข"
-            )
-        if self._company_path(company_id).exists():
-            raise ConfigConflict(f"มีบริษัท '{company_id}' อยู่แล้ว")
+    def create_company(self, display_name: str, components: list[dict]) -> CompanyConfig:
+        """Create a new company. The company_id is generated internally (an
+        opaque reference, never shown to admins); uniqueness is enforced on the
+        human display_name instead, case/whitespace-insensitively."""
+        normalized = _normalize_thai_name(display_name)
+        if not normalized:
+            raise ConfigValidation("กรุณาระบุชื่อบริษัท")
 
+        for raw_existing in self._iter_company_raw():
+            if _normalize_thai_name(raw_existing.get("display_name", "")) == normalized:
+                raise ConfigConflict("มีบริษัทชื่อนี้อยู่แล้ว")
+
+        company_id = self._generate_company_id()
         raw = {
             "company_id": company_id,
-            "display_name": display_name,
+            "display_name": display_name.strip(),
             "version": 1,
             "components": components,
         }
@@ -196,26 +229,62 @@ class ConfigStore:
             )
         return fields
 
+    def _generate_field_key(self, existing_keys: set[str]) -> str:
+        for _ in range(_MAX_ID_ATTEMPTS):
+            candidate = "field_" + secrets.token_hex(_GENERATED_ID_HEX_BYTES)
+            if candidate not in existing_keys:
+                return candidate
+        raise ConfigError("ไม่สามารถสร้าง key ที่ไม่ซ้ำได้ กรุณาลองใหม่")
+
     def add_canonical_field(
         self,
-        key: str,
+        name_th_primary: str,
         aliases_th: list[str],
         expected_group: Optional[str],
         polarity: str,
     ) -> dict:
-        if not _FIELD_KEY_RE.match(key):
-            raise ConfigValidation("key ต้องเป็น snake_case (a-z, ตัวเลข, _) และห้ามขึ้นต้นด้วยตัวเลข")
+        """Add a canonical field. The key is generated internally (opaque, never
+        shown to admins); the field is identified to humans by its Thai name.
+        Uniqueness is enforced on the Thai name(s) — the primary name and every
+        alias — case/whitespace-insensitively, against all existing aliases."""
         if polarity not in _ADDABLE_POLARITIES:
             raise ConfigValidation("polarity ต้องเป็น income หรือ deduction เท่านั้น")
 
-        raw = self._read_canonical_raw()
-        existing_keys = {f["key"] for f in raw["fields"]}
-        if key in existing_keys:
-            raise ConfigConflict(f"มี canonical field '{key}' อยู่แล้ว")
+        primary = (name_th_primary or "").strip()
+        if not primary:
+            raise ConfigValidation("กรุณาระบุชื่อฟิลด์ (ภาษาไทย)")
 
+        # Primary name first, then extra aliases; trimmed, blanks dropped,
+        # de-duplicated. This guarantees aliases_th[0] is always a human-facing
+        # Thai label (the frontend and mapper both read aliases_th[0]).
+        merged_aliases: list[str] = []
+        seen_norm: set[str] = set()
+        for name in [primary, *aliases_th]:
+            cleaned = (name or "").strip()
+            norm = _normalize_thai_name(cleaned)
+            if not cleaned or norm in seen_norm:
+                continue
+            seen_norm.add(norm)
+            merged_aliases.append(cleaned)
+
+        raw = self._read_canonical_raw()
+
+        existing_norm_aliases = {
+            _normalize_thai_name(alias)
+            for field in raw["fields"]
+            for alias in field.get("aliases_th", [])
+        }
+        conflict = next(
+            (a for a in merged_aliases if _normalize_thai_name(a) in existing_norm_aliases),
+            None,
+        )
+        if conflict is not None:
+            raise ConfigConflict(f"มีฟิลด์ที่ใช้ชื่อ '{conflict}' อยู่แล้ว")
+
+        key = self._generate_field_key({f["key"] for f in raw["fields"]})
         new_field = {
             "key": key,
-            "aliases_th": list(aliases_th),
+            "aliases_th": merged_aliases,
             "expected_group": expected_group,
             "polarity": polarity,
             "notes": None,

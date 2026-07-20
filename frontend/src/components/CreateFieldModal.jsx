@@ -5,7 +5,7 @@ import { createCanonicalField } from "../api.js";
 // polarity is income|deduction only — identity fields (employee_id/name) are
 // system metadata and are never created through this UI (the API rejects them).
 export default function CreateFieldModal({ onClose, onCreated }) {
-  const [key, setKey] = useState("");
+  const [nameThPrimary, setNameThPrimary] = useState("");
   const [aliases, setAliases] = useState("");
   const [expectedGroup, setExpectedGroup] = useState("");
   const [polarity, setPolarity] = useState("income");
@@ -18,8 +18,9 @@ export default function CreateFieldModal({ onClose, onCreated }) {
     setSubmitting(true);
     setError("");
     try {
+      // key is generated server-side; we send only the Thai name(s).
       const field = await createCanonicalField({
-        key: key.trim(),
+        name_th_primary: nameThPrimary.trim(),
         aliases_th: aliases
           .split(",")
           .map((a) => a.trim())
@@ -29,16 +30,16 @@ export default function CreateFieldModal({ onClose, onCreated }) {
       });
       onCreated(field);
     } catch (err) {
-      setError(err.message || "สร้าง field ใหม่ไม่สำเร็จ");
+      setError(err.message || "เพิ่มรายการไม่สำเร็จ");
     } finally {
       setSubmitting(false);
     }
   }
 
-  const canSubmit = key.trim() && !submitting;
+  const canSubmit = nameThPrimary.trim() && !submitting;
 
   return (
-    <Modal title="สร้าง field กลางใหม่" onClose={onClose}>
+    <Modal title="เพิ่มรายการเงินใหม่" onClose={onClose}>
       <form onSubmit={handleSubmit}>
         {error && (
           <div className="banner banner-error" role="alert">
@@ -46,50 +47,42 @@ export default function CreateFieldModal({ onClose, onCreated }) {
           </div>
         )}
 
-        <label className="field-label" htmlFor="new-field-key">
-          key (snake_case)
+        <label className="field-label" htmlFor="new-field-name">
+          ชื่อ (ภาษาไทย)
         </label>
         <input
-          id="new-field-key"
+          id="new-field-name"
           className="select"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-          placeholder="เช่น special_allowance"
+          value={nameThPrimary}
+          onChange={(e) => setNameThPrimary(e.target.value)}
+          placeholder="เช่น ค่าครองชีพ"
           disabled={submitting}
+          autoFocus
         />
-        <p className="input-hint">ใช้ตัวพิมพ์เล็ก a–z, ตัวเลข และ _ เท่านั้น</p>
+        <p className="input-hint">ชื่อนี้จะแสดงทุกที่ในระบบ</p>
 
         <div style={{ height: 16 }} />
 
         <label className="field-label" htmlFor="new-field-aliases">
-          ชื่อภาษาไทย (คั่นด้วยเครื่องหมายจุลภาค)
+          ชื่ออื่นที่อาจเจอในไฟล์ Excel (ไม่บังคับ)
         </label>
         <input
           id="new-field-aliases"
           className="select"
           value={aliases}
           onChange={(e) => setAliases(e.target.value)}
-          placeholder="เช่น เบี้ยพิเศษ, ค่าพิเศษ"
+          placeholder="เช่น ค่าพิเศษ, เงินพิเศษ"
           disabled={submitting}
         />
-
-        <div style={{ height: 16 }} />
-
-        <label className="field-label" htmlFor="new-field-group">
-          กลุ่มคอลัมน์ (expected_group) — ไม่บังคับ
-        </label>
-        <input
-          id="new-field-group"
-          className="select"
-          value={expectedGroup}
-          onChange={(e) => setExpectedGroup(e.target.value)}
-          disabled={submitting}
-        />
+        <p className="input-hint">
+          ถ้าบางบริษัทเรียกสิ่งนี้ด้วยชื่อต่างออกไป ใส่ไว้ที่นี่ (คั่นด้วยจุลภาค)
+          ระบบจะจับคู่คอลัมน์ได้แม่นขึ้น
+        </p>
 
         <div style={{ height: 16 }} />
 
         <label className="field-label" htmlFor="new-field-polarity">
-          ประเภท (polarity)
+          ประเภท
         </label>
         <select
           id="new-field-polarity"
@@ -98,18 +91,38 @@ export default function CreateFieldModal({ onClose, onCreated }) {
           onChange={(e) => setPolarity(e.target.value)}
           disabled={submitting}
         >
-          <option value="income">รายรับ (income)</option>
-          <option value="deduction">รายหัก (deduction)</option>
+          <option value="income">รายรับ (บวกเข้าฐาน)</option>
+          <option value="deduction">รายหัก (ลบออกจากฐาน)</option>
         </select>
+
+        <details className="advanced">
+          <summary>ตัวเลือกขั้นสูง</summary>
+          <div className="advanced-body">
+            <label className="field-label" htmlFor="new-field-group">
+              กลุ่มหัวตารางในไฟล์ (ไม่บังคับ)
+            </label>
+            <input
+              id="new-field-group"
+              className="select"
+              value={expectedGroup}
+              onChange={(e) => setExpectedGroup(e.target.value)}
+              disabled={submitting}
+            />
+            <p className="input-hint">
+              ใช้เมื่อมีคอลัมน์ชื่อคล้ายกันมาก เช่น แยก “ชดเชยวันลา” (รายรับ)
+              ออกจาก “ชดเชยวันลา” ฝั่งหัก
+            </p>
+          </div>
+        </details>
 
         <div className="actions">
           <button type="submit" className="btn btn-primary btn-block" disabled={!canSubmit}>
             {submitting ? (
               <>
-                <span className="spinner" /> กำลังสร้าง…
+                <span className="spinner" /> กำลังบันทึก…
               </>
             ) : (
-              "สร้าง field"
+              "เพิ่มรายการ"
             )}
           </button>
           <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>

@@ -16,8 +16,8 @@ export default function FieldPickerModal({
       .filter((f) => !usedFields.has(f.key))
       .filter((f) => {
         if (!q) return true;
-        const alias = (f.aliases_th && f.aliases_th[0]) || "";
-        return f.key.toLowerCase().includes(q) || alias.toLowerCase().includes(q);
+        // Search the Thai names the admin actually sees, not the internal key.
+        return (f.aliases_th || []).some((a) => a.toLowerCase().includes(q));
       });
   }, [canonicalFields, usedFields, query]);
 
@@ -34,7 +34,7 @@ export default function FieldPickerModal({
       />
 
       <button className="picker-create" onClick={onCreateFieldClick}>
-        + สร้าง field กลางใหม่
+        + เพิ่มรายการเงินใหม่
       </button>
 
       <div className="picker-list">
@@ -45,7 +45,9 @@ export default function FieldPickerModal({
             <button key={f.key} className="picker-item" onClick={() => onPick(f.key)}>
               <span className="picker-item-main">
                 <span className="picker-item-thai">{(f.aliases_th && f.aliases_th[0]) || f.key}</span>
-                <span className="picker-item-key">{f.key}</span>
+                {f.aliases_th && f.aliases_th.length > 1 && (
+                  <span className="picker-item-key">{f.aliases_th.slice(1).join(", ")}</span>
+                )}
               </span>
               <span className={`polarity-tag ${f.polarity}`}>
                 {f.polarity === "income" ? "รายรับ" : "รายหัก"}

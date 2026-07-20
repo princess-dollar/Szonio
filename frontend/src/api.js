@@ -130,11 +130,13 @@ export function saveCompany(companyId, { display_name, components }) {
   );
 }
 
-export function createCompany({ company_id, display_name, components }) {
+// No company_id: the server generates an opaque one and returns it. The UI
+// uses the returned id only internally (selection/routing), never displays it.
+export function createCompany({ display_name, components }) {
   return sendJson(
     "/api/companies",
     "POST",
-    { company_id, display_name, components },
+    { display_name, components },
     "สร้างบริษัทไม่สำเร็จ"
   );
 }
@@ -153,12 +155,19 @@ export async function fetchCanonicalFields() {
   return body.canonical_fields || [];
 }
 
-export async function createCanonicalField({ key, aliases_th, expected_group, polarity }) {
+// No key: the server generates an opaque one. name_th_primary is the field's
+// main Thai name and becomes aliases_th[0] (the label shown everywhere).
+export async function createCanonicalField({
+  name_th_primary,
+  aliases_th,
+  expected_group,
+  polarity,
+}) {
   const body = await sendJson(
     "/api/canonical-fields",
     "POST",
-    { key, aliases_th, expected_group, polarity },
-    "สร้าง field ใหม่ไม่สำเร็จ"
+    { name_th_primary, aliases_th, expected_group, polarity },
+    "เพิ่มรายการไม่สำเร็จ"
   );
   return body.canonical_field;
 }

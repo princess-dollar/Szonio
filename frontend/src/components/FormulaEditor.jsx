@@ -36,7 +36,6 @@ export default function FormulaEditor({
             {config.display_name}{" "}
             <span className="version-badge">v{config.version}</span>
           </h2>
-          <div className="muted-id">{config.company_id}</div>
         </div>
         <div className="editor-actions">
           {dirty && <span className="dirty-hint">● แก้ไขยังไม่บันทึก</span>}
@@ -80,10 +79,8 @@ export default function FormulaEditor({
             <div className="component-row" key={c.field}>
               <div className="component-name">
                 <span className="component-thai">{fieldLabel(c.field, fieldsByKey)}</span>
-                <span className="component-meta">
-                  {c.field}
-                  {group ? ` · ${group}` : ""}
-                </span>
+                {/* Group only — the field key is an internal id and is never shown. */}
+                {group && <span className="component-meta">{group}</span>}
               </div>
 
               <div className="sign-toggle" role="group" aria-label="เครื่องหมาย">

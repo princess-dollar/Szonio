@@ -166,7 +166,7 @@ export default function ManagePage() {
     <>
       <div className="page-head">
         <h1>จัดการสูตรบริษัท</h1>
-        <p>แก้ไขสูตรคำนวณ SSO ของแต่ละบริษัท เพิ่มบริษัทใหม่ หรือเพิ่ม field กลางใหม่</p>
+        <p>แก้ไขสูตรคำนวณ SSO ของแต่ละบริษัท เพิ่มบริษัทใหม่ หรือเพิ่มรายการเงินใหม่</p>
       </div>
 
       <div className="manage-grid">

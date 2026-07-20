@@ -7,7 +7,6 @@ import { createCompany } from "../api.js";
 const INITIAL_COMPONENTS = [{ field: "salary_per_period", sign: "+", required: true }];
 
 export default function CreateCompanyModal({ onClose, onCreated }) {
-  const [companyId, setCompanyId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -18,8 +17,8 @@ export default function CreateCompanyModal({ onClose, onCreated }) {
     setSubmitting(true);
     setError("");
     try {
+      // company_id is generated server-side; we only send the Thai name.
       const config = await createCompany({
-        company_id: companyId.trim(),
         display_name: displayName.trim(),
         components: INITIAL_COMPONENTS,
       });
@@ -31,7 +30,7 @@ export default function CreateCompanyModal({ onClose, onCreated }) {
     }
   }
 
-  const canSubmit = companyId.trim() && displayName.trim() && !submitting;
+  const canSubmit = displayName.trim() && !submitting;
 
   return (
     <Modal title="เพิ่มบริษัทใหม่" onClose={onClose}>
@@ -43,30 +42,17 @@ export default function CreateCompanyModal({ onClose, onCreated }) {
         )}
 
         <label className="field-label" htmlFor="new-company-name">
-          ชื่อบริษัท (display name)
+          ชื่อบริษัท
         </label>
         <input
           id="new-company-name"
           className="select"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
+          placeholder="เช่น บริษัท เอซีเอ็ม จำกัด"
           disabled={submitting}
+          autoFocus
         />
-
-        <div style={{ height: 16 }} />
-
-        <label className="field-label" htmlFor="new-company-id">
-          รหัสบริษัท (company_id)
-        </label>
-        <input
-          id="new-company-id"
-          className="select"
-          value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
-          placeholder="เช่น acme_co"
-          disabled={submitting}
-        />
-        <p className="input-hint">ใช้ตัวพิมพ์เล็ก a–z, ตัวเลข และ _ เท่านั้น ห้ามเว้นวรรค</p>
 
         <div className="actions">
           <button type="submit" className="btn btn-primary btn-block" disabled={!canSubmit}>

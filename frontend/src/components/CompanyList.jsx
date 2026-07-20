@@ -14,10 +14,8 @@ export default function CompanyList({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return companies;
-    return companies.filter(
-      (c) =>
-        c.display_name.toLowerCase().includes(q) || c.company_id.toLowerCase().includes(q)
-    );
+    // Search by the Thai name only — company_id is an internal id admins never see.
+    return companies.filter((c) => c.display_name.toLowerCase().includes(q));
   }, [companies, query]);
 
   return (
@@ -62,7 +60,6 @@ export default function CompanyList({
                   aria-current={c.company_id === selectedId ? "true" : undefined}
                 >
                   <span className="company-item-name">{c.display_name}</span>
-                  <span className="company-item-id">{c.company_id}</span>
                 </button>
               </li>
             ))}

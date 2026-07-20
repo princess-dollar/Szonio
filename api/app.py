@@ -135,13 +135,15 @@ class SaveCompanyBody(BaseModel):
 
 
 class CreateCompanyBody(BaseModel):
-    company_id: str
+    # No company_id: admins never enter it — the server generates an opaque one.
     display_name: str
     components: list[ComponentBody]
 
 
 class AddCanonicalFieldBody(BaseModel):
-    key: str
+    # No key: admins never enter it — the server generates an opaque one.
+    # name_th_primary is the field's main Thai name (becomes aliases_th[0]).
+    name_th_primary: str
     aliases_th: list[str] = []
     expected_group: Optional[str] = None
     polarity: str
@@ -216,7 +218,7 @@ def create_app() -> FastAPI:
     ) -> dict:
         try:
             config = store.create_company(
-                body.company_id, body.display_name, _components_to_config_shape(body.components)
+                body.display_name, _components_to_config_shape(body.components)
             )
             return _company_to_api(config)
         except ConfigError as err:
@@ -235,7 +237,7 @@ def create_app() -> FastAPI:
     ) -> dict:
         try:
             field = store.add_canonical_field(
-                body.key, body.aliases_th, body.expected_group, body.polarity
+                body.name_th_primary, body.aliases_th, body.expected_group, body.polarity
             )
             return {"canonical_field": field}
         except ConfigError as err:
