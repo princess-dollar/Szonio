@@ -17,6 +17,7 @@ from services.sso_calculator import calculate_employee
 
 class EmployeeRowResult(BaseModel):
     employee_id: str
+    employee_name: Optional[str] = None  # identity metadata; read by Python only, never sent to the LLM.
     base: Decimal
     contribution: Decimal
     breakdown: list[ComponentAmount]
@@ -52,31 +53,46 @@ class CompanyResult(BaseModel):
     audit: AuditSnapshot
 
 
-def _resolve_employee_id_mapping(mapping_result: ColumnMappingResult) -> ColumnMapping:
+def _find_mapping(mapping_result: ColumnMappingResult, key: str) -> Optional[ColumnMapping]:
     for m in mapping_result.mappings:
-        if m.canonical_field == "employee_id":
+        if m.canonical_field == key:
             return m
-    raise ValueError(
-        "no column was mapped to the 'employee_id' canonical field — cannot identify employee rows"
-    )
+    return None
+
+
+def _read_text_cell(row: dict[int, Any], column_index: Optional[int]) -> Optional[str]:
+    """Read a cell as trimmed text, or None if unmapped/blank. Used for
+    identity fields (employee_id, employee_name) — never summed, only shown."""
+    if column_index is None:
+        return None
+    raw = row.get(column_index)
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
 
 
 def _build_audit_snapshot(
     company_config: CompanyConfig,
     mapping_result: ColumnMappingResult,
     sso_rule: SsoRule,
-    employee_id_mapping: ColumnMapping,
 ) -> AuditSnapshot:
     field_to_mapping = {
         m.canonical_field: m for m in mapping_result.mappings if m.canonical_field is not None
     }
+    component_keys = {c.key for c in company_config.components}
 
+    # Identity / non-formula mapped fields first (employee_id, employee_name,
+    # and any future identity field), in the order the mapping returned them —
+    # no hardcoding of which or how many. Then the formula components in order.
     column_mapping = [
         ColumnMappingUsed(
-            canonical_field="employee_id",
-            column_index=employee_id_mapping.column_index,
-            column_name=employee_id_mapping.column_name,
+            canonical_field=m.canonical_field,
+            column_index=m.column_index,
+            column_name=m.column_name,
         )
+        for m in mapping_result.mappings
+        if m.canonical_field is not None and m.canonical_field not in component_keys
     ]
     for component in company_config.components:
         m = field_to_mapping.get(component.key)
@@ -105,8 +121,17 @@ def build_company_result(
     mapping_result: ColumnMappingResult,
     sso_rule: SsoRule,
 ) -> CompanyResult:
-    employee_id_mapping = _resolve_employee_id_mapping(mapping_result)
+    employee_id_mapping = _find_mapping(mapping_result, "employee_id")
+    if employee_id_mapping is None:
+        raise ValueError(
+            "no column was mapped to the 'employee_id' canonical field — cannot identify employee rows"
+        )
     employee_id_column = employee_id_mapping.column_index
+
+    # employee_name is optional identity metadata: if unmapped, names are simply
+    # blank — never an error, and the numbers are unaffected either way.
+    employee_name_mapping = _find_mapping(mapping_result, "employee_name")
+    employee_name_column = employee_name_mapping.column_index if employee_name_mapping else None
 
     employees: list[EmployeeRowResult] = []
     error_rows: list[ErrorRow] = []
@@ -114,8 +139,7 @@ def build_company_result(
     total_contribution = Decimal("0")
 
     for position, row in enumerate(employee_rows, start=1):
-        raw_employee_id = row.get(employee_id_column)
-        employee_id = str(raw_employee_id).strip() if raw_employee_id is not None else ""
+        employee_id = _read_text_cell(row, employee_id_column)
 
         if not employee_id:
             error_rows.append(
@@ -138,6 +162,7 @@ def build_company_result(
         employees.append(
             EmployeeRowResult(
                 employee_id=employee_id,
+                employee_name=_read_text_cell(row, employee_name_column),
                 base=result.base,
                 contribution=result.contribution,
                 breakdown=result.breakdown,
@@ -146,7 +171,7 @@ def build_company_result(
         total_base += result.base
         total_contribution += result.contribution
 
-    audit = _build_audit_snapshot(company_config, mapping_result, sso_rule, employee_id_mapping)
+    audit = _build_audit_snapshot(company_config, mapping_result, sso_rule)
 
     return CompanyResult(
         employees=employees,

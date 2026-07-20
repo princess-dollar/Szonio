@@ -36,6 +36,12 @@ def _domnick_full_raw_mapping():
                 "confidence": 0.99,
             },
             {
+                "column_index": 2,
+                "column_name": "ชื่อ-นามสกุล",
+                "canonical_field": "employee_name",
+                "confidence": 0.97,
+            },
+            {
                 "column_index": 21,
                 "column_name": "เงินเดือนต่องวด",
                 "canonical_field": "salary_per_period",
@@ -81,6 +87,10 @@ def test_pipeline_flows_end_to_end_with_mocked_gateway():
         (e.contribution for e in company_result.employees), Decimal("0")
     )
     assert company_result.total_base == sum((e.base for e in company_result.employees), Decimal("0"))
+
+    # employee_name (identity metadata) is read from the real file and flows
+    # through to the result — at least one employee has a real name.
+    assert any(e.employee_name for e in company_result.employees)
 
 
 def test_pipeline_stops_at_needs_review_and_does_not_calculate():

@@ -33,6 +33,12 @@ def _domnick_full_raw_mapping():
                 "confidence": 0.99,
             },
             {
+                "column_index": 2,
+                "column_name": "ชื่อ-นามสกุล",
+                "canonical_field": "employee_name",
+                "confidence": 0.97,
+            },
+            {
                 "column_index": 21,
                 "column_name": "เงินเดือนต่องวด",
                 "canonical_field": "salary_per_period",
@@ -69,10 +75,15 @@ def test_output_workbook_has_both_sheets_with_expected_headers_and_row_count(tmp
 
     per_employee_ws = wb["ผลรายคน"]
     header = [cell.value for cell in per_employee_ws[1]]
-    assert header == ["employee_id", "ฐาน SSO", "เงินสมทบ"]
+    assert header == ["employee_id", "ชื่อพนักงาน", "ฐาน SSO", "เงินสมทบ"]
 
     data_row_count = per_employee_ws.max_row - 1  # minus header
     assert data_row_count == len(result.company_result.employees) == 33
+
+    # The name column (B) is populated for at least one employee — the mocked
+    # mapping points employee_name at the real name column.
+    name_values = [per_employee_ws.cell(row=r, column=2).value for r in range(2, per_employee_ws.max_row + 1)]
+    assert any(v for v in name_values)
 
     summary_ws = wb["สรุป"]
     summary_text = "\n".join(

@@ -18,14 +18,11 @@ from models import (
     load_sso_rule,
     validate_column_mapping_response,
 )
+from services.config_store import resolve_base_dir
 from services.mapping_validator import format_report_th, validate_mapping
 from services.result_builder import CompanyResult, build_company_result
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL_FIELDS_PATH = PROJECT_ROOT / "canonical_fields.json"
-SSO_RULE_PATH = PROJECT_ROOT / "sso_rule.json"
-MAPPING_RULES_PATH = PROJECT_ROOT / "mapping_rules.json"
-CONFIGS_DIR = PROJECT_ROOT / "configs"
 
 
 class PipelineResult(BaseModel):
@@ -52,24 +49,34 @@ def process_file(
     excel_path: str,
     company_id: str,
     llm_client: Optional[LlmGatewayClient] = None,
+    config_dir: Optional[Path] = None,
 ) -> PipelineResult:
+    # Resolve config paths from a single base dir (defaults to SSO_CONFIG_DIR /
+    # project root). Keeps the calculate pipeline consistent with the F2b
+    # config store without hardcoding paths.
+    base_dir = Path(config_dir) if config_dir is not None else resolve_base_dir()
+    canonical_fields_path = base_dir / "canonical_fields.json"
+    sso_rule_path = base_dir / "sso_rule.json"
+    mapping_rules_path = base_dir / "mapping_rules.json"
+    configs_dir = base_dir / "configs"
+
     # 1. Excel Inspector: workbook structure + real employee rows (trailing
     #    Total row already excluded by both calls).
     metadata = inspect_workbook(excel_path)
     employee_rows = read_employee_rows(excel_path)
 
     # 2. This company's formula + the shared rule configs.
-    canonical_keys = load_canonical_keys(CANONICAL_FIELDS_PATH)
-    company_config = load_company_config(CONFIGS_DIR / f"{company_id}.json", canonical_keys)
-    sso_rule = load_sso_rule(SSO_RULE_PATH)
-    mapping_rules = load_mapping_rules(MAPPING_RULES_PATH)
+    canonical_keys = load_canonical_keys(canonical_fields_path)
+    company_config = load_company_config(configs_dir / f"{company_id}.json", canonical_keys)
+    sso_rule = load_sso_rule(sso_rule_path)
+    mapping_rules = load_mapping_rules(mapping_rules_path)
 
     # 3. LLM column mapping (Phase 2), then validate the response shape.
     if llm_client is None:
         llm_client = LlmGatewayClient()
 
     columns_payload = [{"index": c.index, "group": c.group, "name": c.name} for c in metadata.columns]
-    canonical_fields_payload = _canonical_fields_payload_items(CANONICAL_FIELDS_PATH)
+    canonical_fields_payload = _canonical_fields_payload_items(canonical_fields_path)
 
     raw_mapping = llm_client.map_columns(columns_payload, canonical_fields_payload)
     mapping_result = validate_column_mapping_response(

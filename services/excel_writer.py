@@ -43,18 +43,23 @@ def _write_header_row(ws: Worksheet, headers: list[str]) -> None:
 
 def _write_per_employee_sheet(ws: Worksheet, company_result: CompanyResult) -> None:
     ws.title = "ผลรายคน"
-    _write_header_row(ws, ["employee_id", "ฐาน SSO", "เงินสมทบ"])
+    _write_header_row(ws, ["employee_id", "ชื่อพนักงาน", "ฐาน SSO", "เงินสมทบ"])
 
     for employee in company_result.employees:
-        ws.append([employee.employee_id, employee.base, employee.contribution])
+        # Null name -> blank cell (None), not the string "None".
+        ws.append(
+            [employee.employee_id, employee.employee_name or None, employee.base, employee.contribution]
+        )
 
+    # Columns A (id) and B (name) are text; only C and D are money.
     for row in ws.iter_rows(min_row=2):
-        row[0].font = _REGULAR
-        for cell in row[1:]:
+        for cell in row[:2]:
+            cell.font = _REGULAR
+        for cell in row[2:]:
             cell.font = _REGULAR
             cell.number_format = _MONEY_FORMAT
 
-    for column_letter, width in (("A", 16), ("B", 14), ("C", 14)):
+    for column_letter, width in (("A", 16), ("B", 28), ("C", 14), ("D", 14)):
         ws.column_dimensions[column_letter].width = width
 
 

@@ -71,3 +71,50 @@ def test_audit_snapshot_names_the_mapping_and_config_used():
     assert by_field["employee_id"].column_index == 1
     assert by_field["salary_per_period"].column_index == 2
     assert by_field["salary_per_period"].sign == "+"
+
+
+# --- employee_name (identity field, optional) -----------------------------
+
+_MAPPING_WITH_NAME = ColumnMappingResult(
+    mappings=[
+        ColumnMapping(column_index=1, column_name="employee code", canonical_field="employee_id", confidence=0.99),
+        ColumnMapping(column_index=3, column_name="ชื่อ-นามสกุล", canonical_field="employee_name", confidence=0.97),
+        ColumnMapping(column_index=2, column_name="salary", canonical_field="salary_per_period", confidence=0.99),
+    ]
+)
+
+
+def test_employee_name_flows_through_when_mapped():
+    employee_rows = [
+        {1: "E001", 2: 10000, 3: "สมชาย ใจดี"},
+        {1: "E002", 2: 20000, 3: "  สมหญิง รักงาน  "},  # surrounding whitespace trimmed
+    ]
+
+    result = build_company_result(employee_rows, _CONFIG, _MAPPING_WITH_NAME, _SSO_RULE)
+
+    assert [e.employee_name for e in result.employees] == ["สมชาย ใจดี", "สมหญิง รักงาน"]
+    # Identity field appears in the audit with no formula sign.
+    by_field = {item.canonical_field: item for item in result.audit.column_mapping}
+    assert by_field["employee_name"].column_index == 3
+    assert by_field["employee_name"].sign is None
+
+
+def test_employee_name_is_none_when_not_mapped_and_numbers_unaffected():
+    employee_rows = [{1: "E001", 2: 10000}, {1: "E002", 2: 20000}]
+
+    with_name = build_company_result(employee_rows, _CONFIG, _MAPPING_WITH_NAME, _SSO_RULE)
+    without_name = build_company_result(employee_rows, _CONFIG, _MAPPING, _SSO_RULE)
+
+    # No name column mapped -> every name is None, no crash.
+    assert all(e.employee_name is None for e in without_name.employees)
+    # ...and the money is identical whether or not names were resolved.
+    assert without_name.total_base == with_name.total_base
+    assert without_name.total_contribution == with_name.total_contribution
+
+
+def test_blank_name_cell_becomes_none():
+    employee_rows = [{1: "E001", 2: 10000, 3: "   "}, {1: "E002", 2: 20000, 3: None}]
+
+    result = build_company_result(employee_rows, _CONFIG, _MAPPING_WITH_NAME, _SSO_RULE)
+
+    assert all(e.employee_name is None for e in result.employees)

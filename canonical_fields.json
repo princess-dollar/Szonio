@@ -135,6 +135,18 @@
       "expected_group": "ข้อมูลทั่วไป",
       "polarity": "identity",
       "notes": "Added in Phase 5 — the orchestrator needs to key per-employee results and detect blank/missing rows without hardcoding 'column 1 is always the employee ID' (SKILL.md rule 5 forbids assuming column order is stable). Routing it through the same LLM mapping mechanism as every other field avoids a special case. Never referenced by any company's formula components; polarity 'identity' distinguishes it from income/deduction — it is never summed into a calculation."
+    },
+    {
+      "key": "employee_name",
+      "aliases_th": [
+        "ชื่อ-นามสกุล",
+        "ชื่อ-สกุล",
+        "ชื่อพนักงาน",
+        "ชื่อ"
+      ],
+      "expected_group": "ข้อมูลทั่วไป",
+      "polarity": "identity",
+      "notes": "Added in Task B1 — display/output metadata only, resolved through the same LLM header-mapping path as employee_id (only the column HEADER is ever sent to the gateway; the name cell VALUES are read by Python from the local file and never leave the process, so no PII reaches the LLM). Like employee_id, polarity 'identity' keeps it out of every company formula, out of Phase 3's formula validation, and out of Phase 4's arithmetic. Optional: if no column maps to it the name is simply blank — never an error."
     }
   ]
 }
