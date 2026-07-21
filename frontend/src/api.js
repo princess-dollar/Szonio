@@ -130,6 +130,17 @@ export function saveCompany(companyId, { display_name, components }) {
   );
 }
 
+// Rename edits display_name only (PATCH). Does not touch the formula or bump
+// version. Returns the updated config (version unchanged).
+export function renameCompany(companyId, displayName) {
+  return sendJson(
+    `/api/companies/${companyId}`,
+    "PATCH",
+    { display_name: displayName },
+    "เปลี่ยนชื่อบริษัทไม่สำเร็จ"
+  );
+}
+
 // No company_id: the server generates an opaque one and returns it. The UI
 // uses the returned id only internally (selection/routing), never displays it.
 export function createCompany({ display_name, components }) {

@@ -8,6 +8,7 @@ import {
   fetchCanonicalFields,
   fetchCompanies,
   getCompany,
+  renameCompany,
   saveCompany,
 } from "../api.js";
 
@@ -138,6 +139,20 @@ export default function ManagePage() {
     setSaveOk(false);
   }
 
+  // Rename touches display_name ONLY — never components — so any unsaved
+  // formula edits stay intact. Throws on failure so the editor shows the
+  // Thai error inline and keeps edit mode open.
+  async function onRename(newName) {
+    const updated = await renameCompany(config.company_id, newName);
+    setConfig((prev) => (prev ? { ...prev, display_name: updated.display_name } : prev));
+    setLoadedConfig((prev) => (prev ? { ...prev, display_name: updated.display_name } : prev));
+    setCompanies((prev) =>
+      prev.map((c) =>
+        c.company_id === updated.company_id ? { ...c, display_name: updated.display_name } : c
+      )
+    );
+  }
+
   function onCompanyCreated(created) {
     setShowCreateCompany(false);
     setCompanies((prev) => {
@@ -209,6 +224,7 @@ export default function ManagePage() {
               onAddComponentClick={() => setShowFieldPicker(true)}
               onSave={onSave}
               onReset={onReset}
+              onRename={onRename}
             />
           ) : null}
         </div>

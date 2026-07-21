@@ -186,6 +186,38 @@ class ConfigStore:
         }
         return self._validate_and_write_company(company_id, raw)
 
+    def rename_company(self, company_id: str, display_name: str) -> CompanyConfig:
+        """Change ONLY the display_name (a label). Does NOT bump version
+        (version tracks formula changes that affect calculation), does NOT
+        change company_id, and does NOT rename the file. The duplicate-name
+        check excludes the company being renamed, so renaming to its own
+        current name (or a case/whitespace variant) is allowed."""
+        path = self._company_path(company_id)
+        if not path.exists():
+            raise ConfigNotFound(f"ไม่พบบริษัท '{company_id}'")
+
+        normalized = _normalize_thai_name(display_name)
+        if not normalized:
+            raise ConfigValidation("กรุณาระบุชื่อบริษัท")
+
+        for raw_existing in self._iter_company_raw():
+            if raw_existing.get("company_id") == company_id:
+                continue  # exclude the company being renamed itself
+            if _normalize_thai_name(raw_existing.get("display_name", "")) == normalized:
+                raise ConfigConflict("มีบริษัทชื่อนี้อยู่แล้ว")
+
+        current = self.get_company(company_id)
+        raw = {
+            "company_id": company_id,
+            "display_name": display_name.strip(),
+            "version": current.version,  # unchanged: a rename is not a formula change
+            "components": [
+                {"key": c.key, "sign": c.sign, "required": c.required}
+                for c in current.components
+            ],
+        }
+        return self._validate_and_write_company(company_id, raw)
+
     def create_company(self, display_name: str, components: list[dict]) -> CompanyConfig:
         """Create a new company. The company_id is generated internally (an
         opaque reference, never shown to admins); uniqueness is enforced on the

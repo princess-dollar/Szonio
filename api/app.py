@@ -134,6 +134,11 @@ class SaveCompanyBody(BaseModel):
     components: list[ComponentBody]
 
 
+class RenameCompanyBody(BaseModel):
+    # Rename edits the display_name label only — never the formula/components.
+    display_name: str
+
+
 class CreateCompanyBody(BaseModel):
     # No company_id: admins never enter it — the server generates an opaque one.
     display_name: str
@@ -182,7 +187,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=_allowed_origins(),
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT"],
+        allow_methods=["GET", "POST", "PUT", "PATCH"],
         allow_headers=["*"],
     )
 
@@ -207,6 +212,18 @@ def create_app() -> FastAPI:
             config = store.save_company(
                 company_id, body.display_name, _components_to_config_shape(body.components)
             )
+            return _company_to_api(config)
+        except ConfigError as err:
+            _raise_for_config_error(err)
+
+    @app.patch("/api/companies/{company_id}")
+    def rename_company(
+        company_id: str,
+        body: RenameCompanyBody,
+        store: ConfigStore = Depends(get_config_store),
+    ) -> dict:
+        try:
+            config = store.rename_company(company_id, body.display_name)
             return _company_to_api(config)
         except ConfigError as err:
             _raise_for_config_error(err)

@@ -134,6 +134,71 @@ def test_put_unknown_company_is_404(client):
     assert resp.status_code == 404
 
 
+# --- PATCH rename (display_name only) -------------------------------------
+
+
+def test_patch_rename_changes_name_without_bumping_version_or_id(client, store_dir):
+    before = client.get("/api/companies/domnick").json()
+    old_version = before["version"]
+    old_components = before["components"]
+
+    resp = client.patch("/api/companies/domnick", json={"display_name": "ดอมนิค (ใหม่)"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["display_name"] == "ดอมนิค (ใหม่)"
+    assert body["company_id"] == "domnick"  # id never changes
+    assert body["version"] == old_version  # a rename is not a formula change
+    assert body["components"] == old_components  # formula untouched
+
+    # The file re-parses, keeps its id/version, and no temp files leak.
+    on_disk = json.loads((store_dir / "configs" / "domnick.json").read_text(encoding="utf-8"))
+    assert on_disk["display_name"] == "ดอมนิค (ใหม่)"
+    assert on_disk["company_id"] == "domnick"
+    assert on_disk["version"] == old_version
+    assert (store_dir / "configs" / "domnick.json").exists()
+    assert list((store_dir / "configs").glob("*.tmp")) == []
+
+
+def test_patch_rename_to_own_current_name_is_allowed(client):
+    current = client.get("/api/companies/domnick").json()["display_name"]
+
+    same = client.patch("/api/companies/domnick", json={"display_name": current})
+    assert same.status_code == 200
+
+    # A case/whitespace variant of its own name is also allowed (not a false 409).
+    variant = client.patch("/api/companies/domnick", json={"display_name": f"  {current.lower()}  "})
+    assert variant.status_code == 200
+
+
+def test_patch_rename_collision_with_another_company_is_409_and_file_unchanged(client, store_dir):
+    target = store_dir / "configs" / "domnick.json"
+    original_bytes = target.read_bytes()
+
+    # "GMTX" belongs to a different company; a case/whitespace variant collides too.
+    resp = client.patch("/api/companies/domnick", json={"display_name": "  gmtx  "})
+    assert resp.status_code == 409
+
+    assert target.read_bytes() == original_bytes
+    assert list((store_dir / "configs").glob("*.tmp")) == []
+
+
+def test_patch_rename_to_blank_is_400_and_file_unchanged(client, store_dir):
+    target = store_dir / "configs" / "domnick.json"
+    original_bytes = target.read_bytes()
+
+    resp = client.patch("/api/companies/domnick", json={"display_name": "   "})
+    assert resp.status_code == 400
+
+    assert target.read_bytes() == original_bytes
+    assert list((store_dir / "configs").glob("*.tmp")) == []
+
+
+def test_patch_rename_unknown_company_is_404(client):
+    resp = client.patch("/api/companies/ghost", json={"display_name": "Ghost"})
+    assert resp.status_code == 404
+
+
 # --- POST create company --------------------------------------------------
 # Admins never send company_id — the server generates an opaque one and
 # enforces uniqueness on the Thai display_name instead.

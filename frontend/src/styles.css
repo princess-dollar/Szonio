@@ -717,6 +717,46 @@ tfoot td {
   font-weight: 600;
 }
 
+.editor-title {
+  min-width: 0;
+}
+
+.edit-name-btn {
+  font-size: 15px;
+  vertical-align: middle;
+  color: var(--primary);
+}
+
+.edit-name-btn:hover {
+  background: var(--primary-soft);
+}
+
+.name-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.name-input {
+  width: auto;
+  min-width: 220px;
+  max-width: 360px;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.icon-button.ok:hover {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.rename-error {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
 .component-rows {
   display: flex;
   flex-direction: column;

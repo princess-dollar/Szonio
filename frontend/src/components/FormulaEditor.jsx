@@ -21,21 +21,113 @@ export default function FormulaEditor({
   onAddComponentClick,
   onSave,
   onReset,
+  onRename,
 }) {
   const [previewValues, setPreviewValues] = useState({});
+
+  // Inline rename (display_name only). Independent of formula editing state —
+  // it never touches components, so unsaved formula edits are preserved.
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState("");
 
   const components = config.components;
   const hasSalary = components.some((c) => c.field === LOCKED_FIELD);
   const { base, contribution } = computePreview(components, previewValues);
 
+  function startRename() {
+    setNameDraft(config.display_name);
+    setRenameError("");
+    setEditingName(true);
+  }
+
+  function cancelRename() {
+    setEditingName(false);
+    setRenameError("");
+  }
+
+  async function submitRename() {
+    const trimmed = nameDraft.trim();
+    if (!trimmed) {
+      setRenameError("กรุณาระบุชื่อบริษัท"); // light client guard; API is authoritative
+      return;
+    }
+    setRenaming(true);
+    setRenameError("");
+    try {
+      await onRename(trimmed);
+      setEditingName(false); // keep edit mode open on failure so they can fix it
+    } catch (err) {
+      setRenameError(err.message || "เปลี่ยนชื่อบริษัทไม่สำเร็จ");
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   return (
     <section className="editor card">
       <div className="editor-head">
-        <div>
-          <h2>
-            {config.display_name}{" "}
-            <span className="version-badge">v{config.version}</span>
-          </h2>
+        <div className="editor-title">
+          {editingName ? (
+            <div className="name-edit">
+              <input
+                className="select name-input"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    submitRename();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                disabled={renaming}
+                autoFocus
+                aria-label="ชื่อบริษัท"
+              />
+              <button
+                className="icon-button ok"
+                onClick={submitRename}
+                disabled={renaming}
+                title="บันทึกชื่อ"
+                aria-label="บันทึกชื่อ"
+              >
+                {renaming ? <span className="spinner spinner-dark" /> : "✓"}
+              </button>
+              <button
+                className="icon-button"
+                onClick={cancelRename}
+                disabled={renaming}
+                title="ยกเลิก"
+                aria-label="ยกเลิกการเปลี่ยนชื่อ"
+              >
+                ✕
+              </button>
+              <span className="version-badge">v{config.version}</span>
+            </div>
+          ) : (
+            <h2>
+              {config.display_name}{" "}
+              <button
+                className="icon-button edit-name-btn"
+                onClick={startRename}
+                disabled={saving}
+                title="เปลี่ยนชื่อบริษัท"
+                aria-label="เปลี่ยนชื่อบริษัท"
+              >
+                ✎
+              </button>{" "}
+              <span className="version-badge">v{config.version}</span>
+            </h2>
+          )}
+          {renameError && (
+            <div className="banner banner-error rename-error" role="alert">
+              {renameError}
+            </div>
+          )}
         </div>
         <div className="editor-actions">
           {dirty && <span className="dirty-hint">● แก้ไขยังไม่บันทึก</span>}
